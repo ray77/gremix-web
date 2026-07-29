@@ -1,0 +1,4 @@
+out/
+*.o
+# Spielmaterial bleibt draussen: 170 MB, und es gehoert nicht zum Bauwissen.
+data/
