@@ -26,8 +26,18 @@ Am 2026-07-29 aus der überlebenden Umgebung neu hergeleitet und **durch Bauen
 | `gremix.wasm` | 2.328.160 | 2.328.551 | 400 Byte Abweichung |
 | `gremix.js` | 1.436.191 | 1.443.010 | 7 KB Abweichung |
 
-Die Restabweichung geht auf eine andere emcc-Fassung zurück, nicht auf andere
-Schalter. Das Rezept ist damit vollständig.
+**Wichtige Berichtigung.** Diese Größenübereinstimmung war *kein* Beweis. Der so
+gebaute Stand lief mit 60 fps, hatte einen WebGL-Kontext, meldete keinen Fehler
+— und zeigte ein **schwarzes Bild**. Es fehlten `-sFULL_ES2=1` und
+`-sMAX_WEBGL_VERSION=2`: zu wenige GL-Einstiegspunkte gebunden, lautlos.
+Erkennbar war es nur am Vergleich `GLctx` im Lader (201 gegen 234) — und daran,
+dass ich endlich hingeschaut habe statt Dateigrößen zu vergleichen.
+
+**Ein Bau, der läuft, ist kein Bau, der funktioniert.** Immer das Bild ansehen.
+
+Mit den beiden Schaltern zeichnet er. Die Zahlen decken sich noch nicht ganz
+(`GLctx` 365 gegen 234, Lader 1.472.123 gegen 1.443.010) — die genaue Kombination
+ist also noch nicht getroffen, wohl aber eine funktionierende.
 
 Der Umweg dahin: zuerst kam ein 178-MB-Datenpaket heraus. Der Größenunterschied
 lag nicht an weggelassenen Dateien (es fehlten nur 41 mit zusammen unter 1 MB),
