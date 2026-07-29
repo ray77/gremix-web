@@ -16,6 +16,8 @@ class player : public _sprite
    bonus *bshild;
    int gauge;
    bool magicpw;
+   bool jump_used;   /* Sprung fuer diesen Tastendruck schon ausgeloest */
+   int  run_frame;   /* Laufbild, an dem der Wurf ansetzte */
    bool canFire,side,direction; // posizione speculare e direzione di moto 0 = destra, 1 = sinistra
    bool stop,move,gold,magicfire,magicshoot,jump_up,jump_down,jump_hit_up,jump_hit_down,down,climb,fire1,fire2,fire_down,fire_up,fall,turn,dead,restart,ready_go;
    bool hittable,hitted,armour_down,armour_side,shild_down,shild_side;
@@ -214,6 +216,7 @@ void player::resetPlayer(int rx,int ry,bool first)
   canFire=1;
   act_frame=0; dress=0; // 0=Armour, 1=Naked 2=Magic armour 3=Dead
   gauge_frame=19;
+  jump_used=0; run_frame=1;
   gold=0; magicfire=0; magicshoot=0; stop=1; move=0; jump_up=0; jump_down=0; down=0; climb=0; fire1=0; fire2=0; fire_down=0; fire_up=0; fall=0; turn=0; dead=0; restart=0; ready_go=0;
   hittable=1; hitted=0; armour_down=0; armour_count=0; shild_down=0; shild_count=0; jump_hit_up=0; jump_hit_down=0;
   side=0; direction=0;
@@ -388,7 +391,9 @@ void player::moveSprite()
     jump_up=0; jump_down=0; fire1=0; fire2=0; fire_down=0; fire_up=0;
     return;
  	 }
- 	if(!jump_up && !jump_down && !fire1 && !fire2 && !fire_down && !fire_up && !climb) // Al suolo
+ 	/* fire* nicht mehr ausgeschlossen: sonst wird die Steuerung waehrend des Wurfs
+ 	   gar nicht gelesen und er bleibt zwangslaeufig stehen. */
+ 	if(!jump_up && !jump_down && !climb) // Al suolo
  	 {
       if(!key[KEYLEFT])                                    { move=0; stop=1; }
       if(!key[KEYRIGHT])                                   { move=0; stop=1; }
@@ -405,9 +410,21 @@ void player::moveSprite()
     	                                   down=1; move=0; stop=0;
     	                                  }
     	               }
-      if(key[KEYJUMP] && !fall) { jump_up=1; down=0; dy=-4; key[KEYJUMP]=0; jump_y=0; }
+      /* Hoch und Sprung liegen im Webbau auf derselben Taste (KEYUP == KEYJUMP).
+         Frueher loeschte der Sprung sie mit key[KEYJUMP]=0 - und weil key[] ein
+         Zustandsfeld ist und eine gehaltene Taste kein neues Ereignis schickt,
+         blieb Hoch danach den ganzen Sprung ueber auf 0. Der Wurf nach oben war
+         damit unerreichbar, am Boden wie in der Luft. Jetzt merkt sich ein Riegel,
+         dass gesprungen wurde; die Taste bleibt fuers Zielen stehen. */
+      if(!key[KEYJUMP]) jump_used=0;
+      if(key[KEYJUMP] && !fall && !jump_used) { jump_up=1; down=0; dy=-4; jump_used=1; jump_y=0; }
       if(key[KEYSHOOT] && canFire) {
-    	                            move=0; stop=0;
+    	                            /* move bleibt stehen: Arthur wirft im Laufen weiter,
+    	                               statt fuer die Wurfanimation anzuhalten. */
+    	                            stop=0;
+    	                            /* Laufbild merken, damit der Zyklus nach dem Wurf
+    	                               dort weitergeht statt auf 1 zu springen. */
+    	                            if(act_frame>=1 && act_frame<=6) run_frame=act_frame;
     								if(!down)      { fire1=1; fire2=0; fire_up=0; act_frame=10; }
     								if(down)       { fire2=1; fire1=0; fire_up=0; act_frame=12; }
     								if(key[KEYUP]) { fire_up=1; fire1=0; fire2=0; act_frame=14; }
@@ -427,7 +444,7 @@ void player::moveSprite()
     if(key[KEYLEFT]  &&  key[KEYRIGHT]) { if(side)  turn=1; }
     if(key[KEYUP])       { }
     if(key[KEYDOWN])     { }
-    if(key[KEYJUMP])      { key[KEYJUMP]=0; }
+    if(!key[KEYJUMP]) jump_used=0;   /* nur den Riegel pflegen, die Taste bleibt */
     if(key[KEYSHOOT] && canFire) {
                                   stop=0;
     							  if(!down)         { fire1=1; fire2=0; fire_up=0; fire_down=0; act_frame=10; }
@@ -511,7 +528,7 @@ void player::animSprite()
     return;
    }
   if(turn) { if(plat_wall) dx=0; side=!side; turn=0; }
-  if(stop) act_frame=0;
+  if(stop && !fire1 && !fire2 && !fire_up && !fire_down) act_frame=0;
   if(climb)
    {
    	if(act_frame<18) act_frame=18;
@@ -522,7 +539,9 @@ void player::animSprite()
   if(move && !jump_up && !jump_down)
    {
    	if(!plat_wall) addGlobX(dx);
-   	if(ti[0]->isOn()) { act_frame++; if(act_frame>6) act_frame=1; }   	
+   	/* Waehrend des Wurfs bleibt das Wurfbild stehen, gelaufen wird trotzdem. */
+   	if(ti[0]->isOn() && !fire1 && !fire2 && !fire_up && !fire_down)
+   	 { act_frame++; if(act_frame>6) act_frame=1; }   	
    }
   if(jump_down)
    {
@@ -542,10 +561,10 @@ void player::animSprite()
    }
   if(down) act_frame=7;
   if(fall && !fire1 && !fire2 && !fire_up && !fire_down) { act_frame=0; }
-  if(fire1)     { if(ti[1]->isOn()) { act_frame++; if(act_frame>11) { act_frame=11; fire1=0;     } } }
-  if(fire2)     { if(ti[1]->isOn()) { act_frame++; if(act_frame>13) { act_frame=13; fire2=0;     } } }
-  if(fire_up)   { if(ti[1]->isOn()) { act_frame++; if(act_frame>15) { act_frame=15; fire_up=0;   } } }
-  if(fire_down) { if(ti[1]->isOn()) { act_frame++; if(act_frame>17) { act_frame=17; fire_down=0; } } }
+  if(fire1)     { if(ti[1]->isOn()) { act_frame++; if(act_frame>11) { fire1=0; act_frame=(move?run_frame:11);     } } }
+  if(fire2)     { if(ti[1]->isOn()) { act_frame++; if(act_frame>13) { fire2=0; act_frame=(move?run_frame:13);     } } }
+  if(fire_up)   { if(ti[1]->isOn()) { act_frame++; if(act_frame>15) { fire_up=0; act_frame=(move?run_frame:15);   } } }
+  if(fire_down) { if(ti[1]->isOn()) { act_frame++; if(act_frame>17) { fire_down=0; act_frame=(move?run_frame:17); } } }
   addGlobY(dy);
  }
 
