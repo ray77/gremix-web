@@ -4,7 +4,7 @@
 # RECONSTRUCTED on 2026-07-29. The original command was never written down and
 # the working directory that held it was cleaned up; this was derived from the
 # surviving environment and verified by building - it compiles and links. What
-# it does NOT yet reproduce is the asset packing, see NOTES.md.
+# environment and verified by building AND by looking at the result.
 #
 # The game is one translation unit: game.cpp includes everything under class/.
 # It runs on Allegro 4 through Allegro-Legacy, which itself sits on Allegro 5,
@@ -16,6 +16,11 @@
 # bearable: the assets are uncompressed BMPs,
 # 170 MB of them, and they pack down to about 26 MB. Without it the browser
 # would fetch the lot raw.
+#
+# -sFULL_ES2=1 -sMAX_WEBGL_VERSION=2 are what make it draw at all. Without them
+# the build runs perfectly happily at 60 fps with a WebGL context and paints
+# nothing: too few GL entry points are linked, and no error is raised anywhere.
+# A build that runs is not a build that works - check the picture.
 #
 # ASYNCIFY, because the game keeps a blocking Allegro 4 style loop.
 # -sUSE_SDL=2 is not optional: the Allegro 5 in prefix/ was built against SDL,
@@ -58,6 +63,7 @@ emcc -c "$HERE/src/game.cpp" -std=gnu++98 -w -O2 "${INC[@]}" -o "$OUT/game.o"
 echo "== link"
 emcc "$OUT/game.o" "$OUT/stubs.o" "${LIB[@]}" \
     -sUSE_SDL=2 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=1048576 -sLZ4=1 \
+    -sFULL_ES2=1 -sMAX_WEBGL_VERSION=2 \
     -O2 --preload-file "$DATA"@data --lz4 \
     -o "$OUT/gremix.js"
 
