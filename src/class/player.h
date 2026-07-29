@@ -388,7 +388,9 @@ void player::moveSprite()
     jump_up=0; jump_down=0; fire1=0; fire2=0; fire_down=0; fire_up=0;
     return;
  	 }
- 	if(!jump_up && !jump_down && !fire1 && !fire2 && !fire_down && !fire_up && !climb) // Al suolo
+ 	/* fire* nicht mehr ausgeschlossen: sonst wird die Steuerung waehrend des Wurfs
+ 	   gar nicht gelesen und er bleibt zwangslaeufig stehen. */
+ 	if(!jump_up && !jump_down && !climb) // Al suolo
  	 {
       if(!key[KEYLEFT])                                    { move=0; stop=1; }
       if(!key[KEYRIGHT])                                   { move=0; stop=1; }
@@ -407,7 +409,9 @@ void player::moveSprite()
     	               }
       if(key[KEYJUMP] && !fall) { jump_up=1; down=0; dy=-4; key[KEYJUMP]=0; jump_y=0; }
       if(key[KEYSHOOT] && canFire) {
-    	                            move=0; stop=0;
+    	                            /* move bleibt stehen: Arthur wirft im Laufen weiter,
+    	                               statt fuer die Wurfanimation anzuhalten. */
+    	                            stop=0;
     								if(!down)      { fire1=1; fire2=0; fire_up=0; act_frame=10; }
     								if(down)       { fire2=1; fire1=0; fire_up=0; act_frame=12; }
     								if(key[KEYUP]) { fire_up=1; fire1=0; fire2=0; act_frame=14; }
@@ -511,7 +515,7 @@ void player::animSprite()
     return;
    }
   if(turn) { if(plat_wall) dx=0; side=!side; turn=0; }
-  if(stop) act_frame=0;
+  if(stop && !fire1 && !fire2 && !fire_up && !fire_down) act_frame=0;
   if(climb)
    {
    	if(act_frame<18) act_frame=18;
@@ -522,7 +526,9 @@ void player::animSprite()
   if(move && !jump_up && !jump_down)
    {
    	if(!plat_wall) addGlobX(dx);
-   	if(ti[0]->isOn()) { act_frame++; if(act_frame>6) act_frame=1; }   	
+   	/* Waehrend des Wurfs bleibt das Wurfbild stehen, gelaufen wird trotzdem. */
+   	if(ti[0]->isOn() && !fire1 && !fire2 && !fire_up && !fire_down)
+   	 { act_frame++; if(act_frame>6) act_frame=1; }   	
    }
   if(jump_down)
    {
