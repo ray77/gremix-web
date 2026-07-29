@@ -16,16 +16,22 @@ hier stand es nur im Arbeitsverzeichnis, und das wurde aufgeräumt.
 Am 2026-07-29 aus der überlebenden Umgebung neu hergeleitet und **durch Bauen
 überprüft** — `build_web.sh` übersetzt und bindet fehlerfrei.
 
-## Was noch fehlt
+## Gegen das Ausgelieferte geprüft
 
-Der **Materialsatz** ist nicht rekonstruiert. Roh sind es 170 MB
-(`maps/` 87 MB, `obj/` 62 MB), das ausgelieferte `gremix.data` hat 26 MB. Weggelassen
-wurden nur 41 Dateien mit zusammen unter 1 MB — die Karten und Objekte müssen
-also in Allegro-Datenpakete überführt worden sein (das Paket enthält 32
-`.dat`-Dateien). Wie, ist offen.
+`build_web.sh` erzeugt dieselben Erzeugnisse wie die live laufende Fassung:
 
-**Ein Bau mit `build_web.sh` erzeugt heute ein 178-MB-Datenpaket statt 26 MB.**
-Bevor irgendetwas ausgeliefert wird, muss dieser Schritt geklärt sein.
+| | neu gebaut | ausgeliefert | |
+|---|---|---|---|
+| `gremix.data` | 26.182.049 | 26.182.049 | Byte-gleich |
+| `gremix.wasm` | 2.328.160 | 2.328.551 | 400 Byte Abweichung |
+| `gremix.js` | 1.436.191 | 1.443.010 | 7 KB Abweichung |
+
+Die Restabweichung geht auf eine andere emcc-Fassung zurück, nicht auf andere
+Schalter. Das Rezept ist damit vollständig.
+
+Der Umweg dahin: zuerst kam ein 178-MB-Datenpaket heraus. Der Größenunterschied
+lag nicht an weggelassenen Dateien (es fehlten nur 41 mit zusammen unter 1 MB),
+sondern an der Kompression — siehe unten.
 
 ## Zutaten
 
@@ -37,6 +43,10 @@ Bevor irgendetwas ausgeliefert wird, muss dieser Schritt geklärt sein.
 
 ## Fallen, die Zeit gekostet haben
 
+- **`--lz4` UND `-sLZ4=1` gehören zusammen.** Der erste packt das Material, der
+  zweite bindet den Entpacker ein, der es liest. Einer allein tut stillschweigend
+  gar nichts: mit `--lz4` ohne `-sLZ4=1` kam ein unkomprimiertes 178-MB-Paket
+  heraus, ohne Fehlermeldung. Erst beide zusammen ergaben die 26 MB.
 - **`-sUSE_SDL=2` ist Pflicht.** Das Allegro 5 im `prefix` wurde gegen SDL
   gebaut; ohne den Schalter bricht das Binden mit `SDL_OpenAudioDevice`,
   `SDL_LockMutex` und einem Dutzend weiterer ab.

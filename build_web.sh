@@ -11,6 +11,12 @@
 # so both are linked. midia5_web_stubs.c replaces Legacy's MIDI player with a
 # TinySoundFont softsynth fed into an A5 audio stream.
 #
+# --lz4 packs the assets and -sLZ4=1 links the decompressor that reads them;
+# one without the other silently does nothing. This is what makes the download
+# bearable: the assets are uncompressed BMPs,
+# 170 MB of them, and they pack down to about 26 MB. Without it the browser
+# would fetch the lot raw.
+#
 # ASYNCIFY, because the game keeps a blocking Allegro 4 style loop.
 # -sUSE_SDL=2 is not optional: the Allegro 5 in prefix/ was built against SDL,
 # and without it the link fails on SDL_OpenAudioDevice and friends.
@@ -51,8 +57,8 @@ emcc -c "$HERE/src/game.cpp" -std=gnu++98 -w -O2 "${INC[@]}" -o "$OUT/game.o"
 
 echo "== link"
 emcc "$OUT/game.o" "$OUT/stubs.o" "${LIB[@]}" \
-    -sUSE_SDL=2 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=1048576 \
-    -O2 --preload-file "$DATA"@data \
+    -sUSE_SDL=2 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=1048576 -sLZ4=1 \
+    -O2 --preload-file "$DATA"@data --lz4 \
     -o "$OUT/gremix.js"
 
 echo "== done"
