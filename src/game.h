@@ -48,6 +48,13 @@ int  WEB_START_STAGE=0;   /* web dev-mode: start stage override (1-based) */
    the logic but draws nothing, because a machine that is behind must not be
    asked to draw more. Only rePaint clears it. */
 bool WEB_SKIP_DRAW=false;
+#ifdef __EMSCRIPTEN__
+/* Allegro-Legacy's web layer, used directly. vsync() bundles pump, present and
+   sleep; a catch-up pass needs only the pump - the half that feeds input,
+   drives the timers AR_Clock() counts on, and keeps the audio buffers full. */
+extern "C" void all_web_pump(void);
+extern "C" void _all_web_sound_pump(void);
+#endif
 bool WEB_TRAINER=false;   /* web dev-mode: cheats/immortality */
 int MS=0,OMS=0,FPS=0,fps=0;
 int SCREENRES,SCANLINES,SCREENX,SCREENY,SCREEND,G_RESX,G_RESY,MFPS;
@@ -3464,16 +3471,24 @@ void rePaint(int max_fps)
 
  	 if(web_owed >= 2*step && web_runs < WEB_MAX_CATCHUP)
  	  {
+ 	   /* Another pass, logic only. vsync() is not called - it would present the
+ 	      frame and sleep until the next one, which is precisely what we are
+ 	      trying not to do yet. But its other half must still happen: the pump is
+ 	      what feeds input, drives the timers AR_Clock() counts on, and keeps the
+ 	      audio buffers full. Skipping it starves the page (it drops to 1 fps)
+ 	      and breaks the sound. */
+ 	   all_web_pump();
+ 	   _all_web_sound_pump();
  	   web_owed -= step;
  	   web_runs++;
- 	   WEB_SKIP_DRAW = true;    /* another pass, logic only */
+ 	   WEB_SKIP_DRAW = true;
  	  }
  	 else
  	  {
  	   if(web_owed > step) web_owed = step;   /* over the cap: let the rest go */
  	   web_runs = 0;
  	   WEB_SKIP_DRAW = false;
- 	   if(VSYNC) vsync();       /* hand the frame over and wait for the next */
+ 	   if(VSYNC) vsync();       /* pump, present, and sleep until the next frame */
  	  }
  	}
  	(void)diff;
