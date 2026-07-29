@@ -44,6 +44,10 @@ char CFGFILE[256] = "./config.cfg";
 
 bool L_B=1,L_0=1,L_1=1,L_S=1,L_H=1,L_OSD=1,DBUG=0,VSYNC=1;
 int  WEB_START_STAGE=0;   /* web dev-mode: start stage override (1-based) */
+/* Set while the loop is catching up on game time it owes: the pass still runs
+   the logic but draws nothing, because a machine that is behind must not be
+   asked to draw more. Only rePaint clears it. */
+bool WEB_SKIP_DRAW=false;
 bool WEB_TRAINER=false;   /* web dev-mode: cheats/immortality */
 int MS=0,OMS=0,FPS=0,fps=0;
 int SCREENRES,SCANLINES,SCREENX,SCREENY,SCREEND,G_RESX,G_RESY,MFPS;
@@ -3410,14 +3414,69 @@ void rePaint(int max_fps)
  	    }
  	 }*/
 
- 	if(STRETCH) stretch_blit(VSCR,screen,0,0,G_RESX,G_RESY,0,0,SCREENX,SCREENY);
- 	else blit(VSCR,screen,0,0,(SCREENX-G_RESX)/2,(SCREENY-G_RESY)/2,G_RESX,G_RESY);
+#ifdef __EMSCRIPTEN__
+ 	/* VORUEBERGEHEND: Logikdurchlaeufe je Sekunde melden */
+ 	{ static int lp_n=0, lp_ms=0; lp_n++;
+ 	  if(AR_Clock()-lp_ms >= 1000) { EM_ASM({ window.__logic = $0; }, lp_n); lp_n=0; lp_ms=AR_Clock(); } }
+#endif
+ 	if(!WEB_SKIP_DRAW)
+ 	 {
+ 	  if(STRETCH) stretch_blit(VSCR,screen,0,0,G_RESX,G_RESY,0,0,SCREENX,SCREENY);
+ 	  else blit(VSCR,screen,0,0,(SCREENX-G_RESX)/2,(SCREENY-G_RESY)/2,G_RESX,G_RESY);
+ 	 }
+#ifndef __EMSCRIPTEN__
  	if(VSYNC) vsync();
+#endif   /* on the web the yield belongs to the pacing block below, which knows
+            whether this pass was a catch-up one and must not hand the frame over */
  	if(AR_Clock()>=MS+MSEC_TO_TIMER(1)) { MS=AR_Clock(); fps=FPS; FPS=0; } FPS++;
 #ifndef __EMSCRIPTEN__
  	diff=(MSEC_TO_TIMER(1)/max_fps)-(AR_Clock()-OMS); if(diff>0) wait(diff);
 #else
- 	(void)diff; /* web: rAF-vsync is the one and only frame pacer */
+ 	/* Game time runs on the clock, not on the display.
+ 	   One pass per frame makes speed proportional to frame rate: at 30 fps
+ 	   everything moves at half speed and never catches up, which is what a
+ 	   player on a busy machine sees as slow motion. Instead the owed time is
+ 	   counted, and when a pass is due the loop is sent round again without
+ 	   drawing - the logic advances, the picture waits. Only when the debt is
+ 	   paid (or the cap reached) does the frame get blitted and the browser get
+ 	   its turn back.
+ 	   Drawing is skipped on catch-up passes on purpose: a machine that cannot
+ 	   keep up must not be asked to draw more than before. Above the cap the
+ 	   game does slow down again - deliberately, because catching up without
+ 	   limit on a machine that is already behind only digs deeper. */
+ 	{
+ 	 static int web_owed = 0;    /* ms of game time still to run   */
+ 	 static int web_last = -1;   /* clock at the previous pass      */
+ 	 static int web_runs = 0;    /* catch-up passes in this frame   */
+ 	 const int  step = (MSEC_TO_TIMER(1) / max_fps);   /* ms per step, as on the desktop */
+ 	 const int  WEB_MAX_CATCHUP = 4;
+ 	 int now = AR_Clock();
+ 	 int passed;
+
+ 	 if(web_last < 0) web_last = now;
+ 	 passed = now - web_last;
+ 	 if(passed < 0) passed = 0;
+ 	 /* A long gap means the tab was away or the machine stalled. Replaying it
+ 	    would fast-forward the game; drop it instead. */
+ 	 if(passed > 250) passed = step;
+ 	 web_last = now;
+ 	 web_owed += passed;
+
+ 	 if(web_owed >= 2*step && web_runs < WEB_MAX_CATCHUP)
+ 	  {
+ 	   web_owed -= step;
+ 	   web_runs++;
+ 	   WEB_SKIP_DRAW = true;    /* another pass, logic only */
+ 	  }
+ 	 else
+ 	  {
+ 	   if(web_owed > step) web_owed = step;   /* over the cap: let the rest go */
+ 	   web_runs = 0;
+ 	   WEB_SKIP_DRAW = false;
+ 	   if(VSYNC) vsync();       /* hand the frame over and wait for the next */
+ 	  }
+ 	}
+ 	(void)diff;
 #endif
  	OMS=AR_Clock();
  }
