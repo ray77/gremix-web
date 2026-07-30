@@ -3456,7 +3456,11 @@ void rePaint(int max_fps)
  	 static int web_last = -1;   /* clock at the previous pass      */
  	 static int web_runs = 0;    /* catch-up passes in this frame   */
  	 const int  step = (MSEC_TO_TIMER(1) / max_fps);   /* ms per step, as on the desktop */
- 	 const int  WEB_MAX_CATCHUP = 4;
+ 	 /* 2, nicht mehr: bei vieren sprang die Figur sichtbar durchs Bild, wenn eine
+ 	    schwache Maschine tief einbrach. Zwei halten die Geschwindigkeit bis 20 fps
+ 	    voll und begrenzen den Sprung eines Bildes auf zwei Schritte; darunter wird
+ 	    es bewusst langsamer statt sprunghaft. */
+ 	 const int  WEB_MAX_CATCHUP = 2;
  	 int now = AR_Clock();
  	 int passed;
 
