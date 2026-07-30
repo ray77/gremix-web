@@ -3421,11 +3421,6 @@ void rePaint(int max_fps)
  	    }
  	 }*/
 
-#ifdef __EMSCRIPTEN__
- 	/* VORUEBERGEHEND: Logikdurchlaeufe je Sekunde melden */
- 	{ static int lp_n=0, lp_ms=0; lp_n++;
- 	  if(AR_Clock()-lp_ms >= 1000) { EM_ASM({ window.__logic = $0; }, lp_n); lp_n=0; lp_ms=AR_Clock(); } }
-#endif
  	if(!WEB_SKIP_DRAW)
  	 {
  	  if(STRETCH) stretch_blit(VSCR,screen,0,0,G_RESX,G_RESY,0,0,SCREENX,SCREENY);
