@@ -17,10 +17,13 @@
 # 170 MB of them, and they pack down to about 26 MB. Without it the browser
 # would fetch the lot raw.
 #
-# -sFULL_ES2=1 -sMAX_WEBGL_VERSION=2 are what make it draw at all. Without them
-# the build runs perfectly happily at 60 fps with a WebGL context and paints
-# nothing: too few GL entry points are linked, and no error is raised anywhere.
-# A build that runs is not a build that works - check the picture.
+# -sFULL_ES2=1 is what makes it draw at all: Allegro's GL path uses client-side
+# arrays, which real WebGL does not have, so without the emulation the build
+# runs happily at 60 fps and paints nothing - no error anywhere.
+# Do NOT add -sMAX_WEBGL_VERSION=2. It forces a WebGL2 context with different
+# draw paths and was measured to run WORSE on real machines; the player-facing
+# regression of 2026-07-29 was exactly this flag. FULL_ES2 alone reproduces the
+# original loader to within a few hundred bytes (GLctx count 234).
 #
 # ASYNCIFY, because the game keeps a blocking Allegro 4 style loop.
 # -sUSE_SDL=2 is not optional: the Allegro 5 in prefix/ was built against SDL,
@@ -63,7 +66,7 @@ emcc -c "$HERE/src/game.cpp" -std=gnu++98 -w -O2 "${INC[@]}" -o "$OUT/game.o"
 echo "== link"
 emcc "$OUT/game.o" "$OUT/stubs.o" "${LIB[@]}" \
     -sUSE_SDL=2 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=1048576 -sLZ4=1 \
-    -sFULL_ES2=1 -sMAX_WEBGL_VERSION=2 \
+    -sFULL_ES2=1 \
     -O2 --preload-file "$DATA"@data --lz4 \
     -o "$OUT/gremix.js"
 
