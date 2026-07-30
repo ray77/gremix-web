@@ -3447,59 +3447,53 @@ void rePaint(int max_fps)
  	   game does slow down again - deliberately, because catching up without
  	   limit on a machine that is already behind only digs deeper. */
  	{
- 	 static int web_owed = 0;    /* ms of game time still to run   */
- 	 static int web_last = -1;   /* clock at the previous pass      */
- 	 static int web_runs = 0;    /* catch-up passes in this frame   */
- 	 static int web_ema = -1;    /* geglaettete Bildzeit, Festkomma 8.8 */
- 	 static int web_frac = 0;    /* Bruchteile, damit nichts verloren geht */
- 	 const int  step = (MSEC_TO_TIMER(1) / max_fps);   /* ms per step, as on the desktop */
- 	 /* 2, nicht mehr: bei vieren sprang die Figur sichtbar durchs Bild, wenn eine
- 	    schwache Maschine tief einbrach. Zwei halten die Geschwindigkeit bis 20 fps
- 	    voll und begrenzen den Sprung eines Bildes auf zwei Schritte; darunter wird
- 	    es bewusst langsamer statt sprunghaft. */
- 	 const int  WEB_MAX_CATCHUP = 2;
- 	 int now = AR_Clock();
- 	 int passed;
+ 	 static int web_pend = 0;    /* Nachholschritte, die vor dem naechsten Bild noch laufen */
+ 	 static int web_last = -1;   /* Uhr an der letzten BILDGRENZE, nicht am letzten Durchlauf */
+ 	 static int web_ema  = -1;   /* geglaettete Bildzeit, Festkomma 8.8 */
+ 	 static int web_frac = 0;    /* Zeitrest unterhalb eines Schritts, Festkomma 8.8 */
+ 	 const int STEP_FX = (1000 << 8) / 60;   /* ein Spielschritt = 1/60 s */
 
- 	 if(web_last < 0) web_last = now;
- 	 passed = now - web_last;
- 	 if(passed < 0) passed = 0;
- 	 /* A long gap means the tab was away or the machine stalled. Replaying it
- 	    would fast-forward the game; drop it instead. */
- 	 if(passed > 250) passed = step;
- 	 web_last = now;
- 	 /* Geglaettet statt roh: die Bildzeiten schwanken (21, 40, 30 ms ...), und
- 	    roh aufsummiert springt die Schrittzahl je Bild zwischen 1 und 3 - die
- 	    Bewegung wirkt nervoes, obwohl die Durchschnittsgeschwindigkeit stimmt.
- 	    Ein 1/8-Tiefpass macht daraus einen ruhigen Takt (stabile 30 fps ergeben
- 	    stetig zwei Schritte je Bild); der Mittelwert bleibt die echte Zeit, die
- 	    Geschwindigkeit stimmt also weiterhin. Bruchteile werden mitgefuehrt. */
- 	 if(web_ema < 0) web_ema = passed << 8;
- 	 web_ema += ((passed << 8) - web_ema) >> 3;
- 	 web_frac += web_ema;
- 	 web_owed += web_frac >> 8;
- 	 web_frac &= 255;
-
- 	 if(web_owed >= 2*step && web_runs < WEB_MAX_CATCHUP)
+ 	 if(web_pend > 0)
  	  {
- 	   /* Another pass, logic only. vsync() is not called - it would present the
- 	      frame and sleep until the next one, which is precisely what we are
- 	      trying not to do yet. But its other half must still happen: the pump is
- 	      what feeds input, drives the timers AR_Clock() counts on, and keeps the
- 	      audio buffers full. Skipping it starves the page (it drops to 1 fps)
- 	      and breaks the sound. */
+ 	   /* Nachholdurchlauf: die Logik ist gelaufen, gezeigt wird nichts. Die Pumpe
+ 	      laeuft trotzdem - Eingaben, Zeitgeber, Ton haengen an ihr. Wichtig: hier
+ 	      wird NICHT gemessen. Ein frueherer Stand mass die Zeit pro Durchlauf und
+ 	      mischte diese Fast-Null-Durchlaeufe in den Filter - der Takt wurde
+ 	      erratisch, und es ruckelte trotz guter Bildrate. */
+ 	   web_pend--;
  	   all_web_pump();
  	   _all_web_sound_pump();
- 	   web_owed -= step;
- 	   web_runs++;
  	   WEB_SKIP_DRAW = true;
  	  }
  	 else
  	  {
- 	   if(web_owed > step) web_owed = step;   /* over the cap: let the rest go */
- 	   web_runs = 0;
+ 	   /* Bildgrenze: erst hier wird gemessen. Die Bildzeit umfasst das gezeigte
+ 	      Bild samt seiner Nachholdurchlaeufe - die echte Zeit also. Ein 1/8-Tief-
+ 	      pass glaettet die Schwankungen, der Rest wird als Bruchteil mitgefuehrt:
+ 	      stabile 30 fps ergeben stetig zwei Schritte je Bild, 45 fps ein sauberes
+ 	      1-2-1-Muster, volle 60 genau einen. */
+ 	   int now = AR_Clock();
+ 	   int dt;
+ 	   if(web_last < 0) web_last = now;
+ 	   dt = now - web_last;
+ 	   web_last = now;
+ 	   if(dt < 0) dt = 0;
+ 	   if(dt > 250) { dt = 1000 / 60; web_frac = 0; web_ema = -1; }  /* Pause verwerfen */
+ 	   {
+ 	    int dt_fx = dt << 8;
+ 	    if(web_ema < 0) web_ema = dt_fx;
+ 	    web_ema += (dt_fx - web_ema) >> 3;
+ 	    web_frac += web_ema;
+ 	   }
+ 	   {
+ 	    int due = web_frac / STEP_FX;
+ 	    web_frac -= due * STEP_FX;
+ 	    if(due < 1) { due = 1; web_frac = 0; }       /* mindestens ein Schritt je Bild */
+ 	    web_pend = due - 1;
+ 	    if(web_pend > 2) { web_pend = 2; web_frac = 0; }  /* Deckel: darunter ehrlich langsamer */
+ 	   }
  	   WEB_SKIP_DRAW = false;
- 	   if(VSYNC) vsync();       /* pump, present, and sleep until the next frame */
+ 	   if(VSYNC) vsync();       /* Bild zeigen und bis zum naechsten schlafen */
  	  }
  	}
  	(void)diff;
