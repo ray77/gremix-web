@@ -59,12 +59,17 @@ int main()
      {
    	  checkGame();
    	  if(GAME_OVER) break;
-  	  if(L_B)   layer_back();
-  	  if(L_0)   layer_0();
-  	  if(L_1)   layer_1();
-  	  if(L_S)   layer_s();
-  	  if(L_H)   layer_h();
-  	  if(L_OSD) layer_OSD(50);
+  	  /* Nothing to draw on a catch-up pass - the logic below still runs, the
+  	     picture simply waits for the frame that will actually be shown. */
+  	  if(!WEB_SKIP_DRAW)
+  	   {
+  	    if(L_B)   layer_back();
+  	    if(L_0)   layer_0();
+  	    if(L_1)   layer_1();
+  	    if(L_S)   layer_s();
+  	    if(L_H)   layer_h();
+  	    if(L_OSD) layer_OSD(50);
+  	   }
   	  Player();
   	  Enemies();
   	  Collision();

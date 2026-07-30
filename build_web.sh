@@ -67,8 +67,31 @@ echo "== link"
 emcc "$OUT/game.o" "$OUT/stubs.o" "${LIB[@]}" \
     -sUSE_SDL=2 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=1048576 -sLZ4=1 \
     -sFULL_ES2=1 \
-    -O2 --preload-file "$DATA"@data --lz4 \
+    -O2 --preload-file "$DATA"@data --lz4 --use-preload-cache \
     -o "$OUT/gremix.js"
 
+echo "== link (JSPI)"
+# Same game, second engine: with JSPI the JS engine suspends the blocking loop
+# itself, without the ASYNCIFY instrumentation that made up a third of the
+# binary and taxed every function. Not universal yet, so the page feature-
+# detects (WebAssembly.Suspending) and falls back to the ASYNCIFY build.
+emcc "$OUT/game.o" "$OUT/stubs.o" "${LIB[@]}" \
+    -sUSE_SDL=2 -sJSPI -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=1048576 -sLZ4=1 \
+    -sFULL_ES2=1 \
+    -O2 --preload-file "$DATA"@data --lz4 --use-preload-cache \
+    -o "$OUT/gremix_jspi.js"
+# Both engines read the one gremix.data; the JSPI loader is retargeted and its
+# duplicate package dropped.
+# The cache key is a sha256 of the package content, so both engines land on the
+# same IndexedDB entry by themselves - only the filename needs retargeting.
+python3 - "$OUT" <<'PYEOF'
+import sys
+out = sys.argv[1]
+p = out + '/gremix_jspi.js'
+s = open(p, encoding='utf-8', errors='surrogateescape').read()
+open(p, 'w', encoding='utf-8', errors='surrogateescape').write(s.replace('gremix_jspi.data', 'gremix.data'))
+PYEOF
+rm -f "$OUT/gremix_jspi.data"
+
 echo "== done"
-ls -la "$OUT"/gremix.js "$OUT"/gremix.wasm "$OUT"/gremix.data | awk '{printf "  %10d  %s\n", $5, $9}'
+ls -la "$OUT"/gremix.js "$OUT"/gremix.wasm "$OUT"/gremix_jspi.js "$OUT"/gremix_jspi.wasm "$OUT"/gremix.data | awk '{printf "  %10d  %s\n", $5, $9}'

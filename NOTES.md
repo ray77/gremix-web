@@ -75,3 +75,17 @@ sondern an der Kompression — siehe unten.
 - Der spieleigene FPS-Zähler ist **nicht** erreichbar: er hängt an `DBUG` (F8)
   *und* am Bauschalter `DEBUG`, der ausgeliefert aus ist. F5 ist ohnehin die
   Neuladen-Taste des Browsers.
+
+## Widerruf: die beiden Fehlversuche zum Takt
+
+Beide Versuche auf `versuch-taktentkopplung` wurden als „verhungert" abgetan —
+schwarzes Bild, 1 fps. Das war falsch zugeordnet. Dieselben Symptome zeigte
+`master` **ohne jede Taktänderung**: es waren die fehlenden GL-Schalter. Auf dem
+berichtigten Rezept neu gebaut, zeichnet der Zweig.
+
+Ob die Entkopplung trägt, ist damit **ungemessen**, nicht widerlegt.
+
+Auch das Nachstellen einer niedrigen Bildrate von der Seite aus scheiterte: das
+Spiel ruft `window.requestAnimationFrame` kaum auf (14-mal in 54 s), die Drossel
+greift also am falschen Hebel. Der echte Taktgeber ist `all_web_raf_wait()` in
+Allegro-Legacy — dort muss ein Bremsversuch ansetzen, nicht am globalen rAF.
