@@ -89,3 +89,35 @@ Auch das Nachstellen einer niedrigen Bildrate von der Seite aus scheiterte: das
 Spiel ruft `window.requestAnimationFrame` kaum auf (14-mal in 54 s), die Drossel
 greift also am falschen Hebel. Der echte Taktgeber ist `all_web_raf_wait()` in
 Allegro-Legacy — dort muss ein Bremsversuch ansetzen, nicht am globalen rAF.
+
+## Der Weg auf den Hauptpfad (29./30.07.)
+
+Alles Folgende ist gemergt (`decouple game speed from the frame rate`) und
+live; die Einzelheiten stehen in den Commits des Zweigs `versuch-taktentkopplung`.
+
+- **Taktentkopplung:** Spielzeit an der Uhr. Je Bild 1–3 Schritte, entschieden
+  an der **Bildgrenze** aus der tiefpassgefilterten Bildzeit (1/8-EMA,
+  Festkomma 8.8). Nachholdurchläufe: Logik + Pumpe ja, zeichnen/messen nein.
+  Ein Schritt ist exakt 1/60 s — `MSEC_TO_TIMER(1)/60` wäre 19,9 ms
+  (Allegro-Timereinheiten!) und hätte langsame Maschinen 16 % langsamer laufen
+  lassen.
+- **Falle Filterort:** Zeit pro *Durchlauf* gemessen mischt die
+  Fast-Null-Nachholer in den Filter → Ruckeln trotz guter Bildrate. Nur an der
+  Bildgrenze messen.
+- **Motorweiche:** JSPI wo verfügbar (`WebAssembly.Suspending`-Test im
+  Wrapper), sonst ASYNCIFY. Ein Drittel des wasm war
+  ASYNCIFY-Instrumentierung (2,33 → 1,59 MB). JSPI ist 2026 nicht überall an —
+  deshalb zwei Bauten, `gremix.js` und `gremix_jspi.js`, gemeinsames
+  Datenpaket (Cache-Schlüssel ist der Inhalts-Hash, beide landen im selben
+  IndexedDB-Eintrag).
+- **Falle JSPI + Splash:** unter JSPI kehrt `main()` nie zurück, `postRun`
+  feuert nie — der Splash blieb bis zum 20-s-Nottimer stehen. Fertig-Signal an
+  `Module.onRuntimeInitialized` hängen.
+- **Laden:** `--use-preload-cache`; Wiederbesuch in Sekunden.
+- **Messwerkzeuge im Wrapper (dauerhaft):** `?fps` mit Minutenschnitt
+  (Momentanwert zeigt beim Ablesen immer 60), Anteil unter 55, Motor,
+  Ladezeit, GPU-Renderer (`SwiftShader` = Software-Rendering beim Spieler);
+  `?nopdb` schaltet preserveDrawingBuffer ab; `?keys` gibt es drüben bei Pang.
+- Messwert des schwachen Referenz-PCs am Ende: Ø 57/60, 24 % unter 55, JSPI.
+  Ein Spieler mit 5–10 fps bleibt langsam — dort ist Software-Rendering der
+  Verdächtige, nicht dieses Spiel.
