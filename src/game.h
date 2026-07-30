@@ -3450,6 +3450,8 @@ void rePaint(int max_fps)
  	 static int web_owed = 0;    /* ms of game time still to run   */
  	 static int web_last = -1;   /* clock at the previous pass      */
  	 static int web_runs = 0;    /* catch-up passes in this frame   */
+ 	 static int web_ema = -1;    /* geglaettete Bildzeit, Festkomma 8.8 */
+ 	 static int web_frac = 0;    /* Bruchteile, damit nichts verloren geht */
  	 const int  step = (MSEC_TO_TIMER(1) / max_fps);   /* ms per step, as on the desktop */
  	 /* 2, nicht mehr: bei vieren sprang die Figur sichtbar durchs Bild, wenn eine
  	    schwache Maschine tief einbrach. Zwei halten die Geschwindigkeit bis 20 fps
@@ -3466,7 +3468,17 @@ void rePaint(int max_fps)
  	    would fast-forward the game; drop it instead. */
  	 if(passed > 250) passed = step;
  	 web_last = now;
- 	 web_owed += passed;
+ 	 /* Geglaettet statt roh: die Bildzeiten schwanken (21, 40, 30 ms ...), und
+ 	    roh aufsummiert springt die Schrittzahl je Bild zwischen 1 und 3 - die
+ 	    Bewegung wirkt nervoes, obwohl die Durchschnittsgeschwindigkeit stimmt.
+ 	    Ein 1/8-Tiefpass macht daraus einen ruhigen Takt (stabile 30 fps ergeben
+ 	    stetig zwei Schritte je Bild); der Mittelwert bleibt die echte Zeit, die
+ 	    Geschwindigkeit stimmt also weiterhin. Bruchteile werden mitgefuehrt. */
+ 	 if(web_ema < 0) web_ema = passed << 8;
+ 	 web_ema += ((passed << 8) - web_ema) >> 3;
+ 	 web_frac += web_ema;
+ 	 web_owed += web_frac >> 8;
+ 	 web_frac &= 255;
 
  	 if(web_owed >= 2*step && web_runs < WEB_MAX_CATCHUP)
  	  {
